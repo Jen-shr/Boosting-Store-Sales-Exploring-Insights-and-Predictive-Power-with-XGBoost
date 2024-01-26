@@ -1,0 +1,1031 @@
+---
+title: "DPA PROJECT - WALMART SALES"
+author: "JENITA SHIRLEY, VINITHA, ADITYA, LAXMAN & PRAPUL PODILI"
+date: "2023-11-01"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+```{r}
+traindf <- read.csv("C:/Users/Jeni/Downloads/walmart sales project/train.csv")
+
+summary(traindf)
+
+```
+
+```{r}
+storesdf <- read.csv("C:/Users/Jeni/Downloads/walmart sales project/stores.csv")
+summary(storesdf)
+```
+
+
+```{r}
+featuresdf <- read.csv("C:/Users/Jeni/Downloads/walmart sales project/features.csv")
+summary(featuresdf)
+```
+
+```{r}
+testingdf <- read.csv("C:/Users/Jeni/Downloads/walmart sales project/test.csv")
+summary(testingdf)
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+
+mergeddf <- traindf %>%
+    left_join(storesdf, by = "Store") %>%
+    left_join(featuresdf, by = c("Store", "Date"))
+
+testingdf_merged <- testingdf %>%
+    left_join(storesdf, by = "Store") %>%
+    left_join(featuresdf, by = c("Store", "Date"))
+
+splitdf_date <- function(df) {
+    df$Date <- as.Date(df$Date)
+    df$Year <- year(df$Date)
+    df$Month <- month(df$Date)
+    df$Day <- day(df$Date)
+    df$WeekOfYear <- week(df$Date)
+    return(df)
+}
+
+mergeddf <- splitdf_date(mergeddf)
+testingdf_merged <- splitdf_date(testingdf_merged)
+mergeddf
+testingdf_merged
+
+```
+
+```{r}
+#structure of train data - train + store + features
+str(mergeddf)
+```
+
+```{r}
+# to find the Column names with value "NA" - train 
+library(ggplot2)
+
+missing_values <- sapply(mergeddf, function(x) sum(is.na(x)))
+missing_values_df <- data.frame(Variable = names(missing_values), MissingValues = as.integer(missing_values))
+
+
+
+ggplot(missing_values_df, aes(x = Variable, y = MissingValues)) +
+  geom_bar(stat = "identity", fill = "red") +
+  theme_minimal() +
+  labs(title = "Missing Values", x = "Variable", y = "Missing Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+# To find out which store type is popular 
+library(ggplot2)
+
+typecounts <- table(mergeddf$Type)
+typecounts_df <- as.data.frame(typecounts)
+typecounts_df$Percentage <- (typecounts_df$Freq / sum(typecounts_df$Freq)) * 100
+typecounts_df$Label <- paste0(typecounts_df$Var1, "\n", round(typecounts_df$Percentage, 1), "%")
+ggplot(typecounts_df, aes(x = "", y = Freq, fill = Var1, label = Label)) +
+  geom_bar(stat = "identity", width = 1) +
+  geom_text(position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  labs(title = "Popularity of Store Types", x = NULL, y = NULL, fill = "Store Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank())
+
+
+```
+A store type is the most popular 
+```{r}
+# Average Sales - Per Store Type
+library(ggplot2)
+library(dplyr)
+
+avgweeklysales <- mergeddf %>%
+  group_by(Type) %>%
+  summarize(AvgSales = mean(Weekly_Sales, na.rm = TRUE))
+
+ggplot(avgweeklysales, aes(x = Type, y = AvgSales)) +
+  geom_bar(stat = "identity", fill = "#DC143C") +
+  labs(title = "Average Sales - Per Store", x = "Store Type", y = "Average Sales") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+```
+Store Type A has the greatest average sales
+
+```{r}
+# Average Monthly Sales Per year 
+library(dplyr)
+library(ggplot2)
+avg_sales_by_year <- mergeddf %>%
+  filter(Year %in% c(2010, 2011, 2012)) %>%
+  group_by(Year, Month) %>%
+  summarize(AvgSales = mean(Weekly_Sales, na.rm = TRUE))
+ggplot(avg_sales_by_year, aes(x = factor(Month), y = AvgSales, fill = as.factor(Year))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Monthly Sales by Year", 
+       x = "Month", y = "Average Monthly Sales",
+       fill = "Year") +
+  theme_minimal() +
+  scale_fill_manual(values = c("2010" = "#1f77b4", "2011" = "#ff7f0e", "2012" = "#2ca02c"))
+
+```
+1. The lowest sales were recorded in January for both 2011 and 2012; the weekly sales for 2010 are not included in the report.
+
+2. For the three years, the weekly sales from February to October are almost exactly the same at 15,000.
+
+3. For 2010 and 2011, the months with the highest sales were November and December; however, sales data for 2012 is not available.
+
+```{r}
+# Average Weekly Sales per Year
+library(dplyr)
+library(ggplot2)
+
+avg_weekly_sales <- mergeddf %>%
+  filter(Year %in% c(2010, 2011, 2012)) %>%
+  group_by(Year, WeekOfYear) %>%
+  summarize(AvgSales = mean(Weekly_Sales, na.rm = TRUE))
+
+ggplot(avg_weekly_sales, aes(x = as.factor(WeekOfYear), y = AvgSales, color = as.factor(Year), group = Year, shape = as.factor(Year))) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  labs(title = "Average Weekly Sales - Per Year", 
+       x = "Week of Year", y = "Sales",
+       color = "Year", shape = "Year") +
+  theme_minimal() +
+  scale_shape_manual(values = c("2010" = 3, "2011" = 16, "2012" = 8)) + 
+  theme(legend.position = "top", axis.text = element_text(size = 5), axis.title = element_text(size = 20), title = element_text(size = 24))
+
+```
+1. Weekly sales for the months of 2010 and 2011 were strongest during the week of Thanksgiving and the week before Christmas.
+
+2. When compared to other weeks of the year in 2012, week number 14 had the largest sales, however this wasn't related to any holidays or noteworthy occasions but NFL 2012 happened 
+
+```{r}
+# AVerage Sales in all the 45 Stores in all those 3 years 
+library(dplyr)
+library(ggplot2)
+
+store_sales <- mergeddf %>%
+  group_by(Store) %>%
+  summarize(AvgSales = mean(Weekly_Sales, na.rm = TRUE)) %>%
+  arrange(AvgSales)
+
+p_bar <- ggplot(store_sales, aes(x = factor(Store, levels = 1:45), y = AvgSales)) +
+  geom_bar(stat = "identity", color = "#DC143C", fill = "#DC143C") +
+  labs(title = "Average Sales - Per Store", 
+       x = "Stores", y = "Sales") +
+  theme_minimal() +
+  scale_x_discrete(breaks = 1:45) + 
+  theme(legend.position = "none", 
+        axis.text.x = element_text(angle = 0, hjust = 0.5, size = 5),
+        axis.text.y = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, size = 14))
+
+p_bar
+
+
+
+```
+The 45 stores' sales differ significantly from one another.
+The store 20 has the highest sales
+
+The answer varies greatly depending on the type of retailer and the week of the year in question.
+
+
+
+```{r}
+# AVerage Sales in all the 45 Stores - year wise 2010, 2011, 2012 
+library(dplyr)
+library(ggplot2)
+library(gridExtra) 
+
+
+store_sales_2010 <- mergeddf %>% filter(Year == 2010) %>%
+  group_by(Store) %>%
+  summarize(AvgSales2010 = mean(Weekly_Sales, na.rm = TRUE))
+
+store_sales_2011 <- mergeddf %>% filter(Year == 2011) %>%
+  group_by(Store) %>%
+  summarize(AvgSales2011 = mean(Weekly_Sales, na.rm = TRUE))
+
+store_sales_2012 <- mergeddf %>% filter(Year == 2012) %>%
+  group_by(Store) %>%
+  summarize(AvgSales2012 = mean(Weekly_Sales, na.rm = TRUE))
+
+p_2010 <- ggplot(store_sales_2010, aes(x = factor(Store, levels = 1:45), y = AvgSales2010)) +
+  geom_bar(stat = "identity", fill = scales::seq_gradient_pal("blue", "red")(0.7)) +
+  labs(title = "Average Store Sales 2010", x = "Store", y = "AvgSales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size = 7))
+
+p_2011 <- ggplot(store_sales_2011, aes(x = factor(Store, levels = 1:45), y = AvgSales2011)) +
+  geom_bar(stat = "identity", fill = scales::seq_gradient_pal("blue", "red")(0.7)) +
+  labs(title = "Average Store Sales 2011", x = "Store", y = "AvgSales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size = 7))
+
+p_2012 <- ggplot(store_sales_2012, aes(x = factor(Store, levels = 1:45), y = AvgSales2012)) +
+  geom_bar(stat = "identity", fill = scales::seq_gradient_pal("blue", "red")(0.7)) +
+  labs(title = "Average Store Sales 2012", x = "Store", y = "AvgSales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size = 7))
+
+grid.arrange(p_2010, p_2011, p_2012, ncol = 1)
+
+```
+Since shop sales vary depending on the nature and size of the store, the general trend over the last three years has remained same.
+
+Throughout the three years, the stores with the highest sales were 2, 4, 13, 14, and 20.
+
+```{r}
+#Average Department Sales for all the 3 years 
+dept_sales <- mergeddf %>%
+  group_by(Dept) %>%
+  summarise(AvgSales = mean(Weekly_Sales, na.rm = TRUE))
+
+
+p_lollipop <- ggplot(dept_sales, aes(x = reorder(factor(Dept), Dept), y = AvgSales)) +
+  geom_segment(aes(xend = reorder(factor(Dept), Dept), yend = 0), color = "#DC143C") +
+  geom_point(color = "#DC143C", size = 3) +
+  coord_flip() +
+  labs(title = "Average Sales - Per Department", 
+       x = "Dept", y = "Sales") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 5), plot.title = element_text(hjust = 0.7, size = 16)) 
+
+
+options(repr.plot.width = 25, repr.plot.height = 25)
+
+p_lollipop
+
+
+```
+Various departments displayed varying average sales figures.
+
+Notables with the highest average sales include 38, 65, 72, 92, and 95.
+
+```{r}
+#Average Department Sales for 2010, 2011, 2012 
+
+dept_sales_2010 <- mergeddf[mergeddf$Year == 2010, ] %>%
+  group_by(Dept) %>%
+  summarise(AvgSales2010 = mean(Weekly_Sales, na.rm = TRUE))
+
+p_lollipop_2010 <- ggplot(dept_sales_2010, aes(y = Dept, x = AvgSales2010)) +
+  geom_segment(aes(xend = 0, yend = Dept), color = "blue") +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Average Department Sales - 2010", x = "AvgSales2010") +
+  theme_minimal()
+
+
+p_lollipop_2010
+
+
+
+```
+```{r}
+dept_sales_2011 <- mergeddf[mergeddf$Year == 2011, ] %>%
+  group_by(Dept) %>%
+  summarise(AvgSales2011 = mean(Weekly_Sales, na.rm = TRUE))
+
+p_lollipop_2011 <- ggplot(dept_sales_2011, aes(y = Dept, x = AvgSales2011)) +
+  geom_segment(aes(xend = 0, yend = Dept), color = "blue") +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Average Department Sales - 2011", x = "AvgSales2011") +
+  theme_minimal()
+
+p_lollipop_2011
+
+
+```
+```{r}
+dept_sales_2012 <- mergeddf[mergeddf$Year == 2012, ] %>%
+  group_by(Dept) %>%
+  summarise(AvgSales2012 = mean(Weekly_Sales, na.rm = TRUE))
+p_lollipop_2012 <- ggplot(dept_sales_2012, aes(y = Dept, x = AvgSales2012)) +
+  geom_segment(aes(xend = 0, yend = Dept), color = "blue") +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Average Department Sales - 2012", x = "AvgSales2012") +
+  theme_minimal()
+
+
+p_lollipop_2012
+
+```
+Annually, the sales trend stays the same. Higher-selling stores opened up across the course of the three years, whereas lower-selling stores had a consistent pattern.
+
+
+```{r}
+#Holiday Vs Non-Holiday Sales
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(scales)
+
+
+holiday_data <- mergeddf %>%
+  group_by(IsHoliday.y) %>%
+  summarise(AvgSales = mean(Weekly_Sales), Count = n())
+
+
+p1 <- ggplot(holiday_data, aes(x = factor(IsHoliday.y), y = AvgSales)) +
+  geom_bar(stat = "identity", fill = c("red", "blue")) +
+  coord_flip() +
+  labs(title = "Holidays/Nonholidays Sales", x = "IsHoliday", y = "Average Sales") +
+  theme_minimal()
+
+
+p2 <- ggplot(holiday_data, aes(x = factor(IsHoliday.y), y = Count)) +
+  geom_bar(stat = "identity", fill = c("red", "blue")) +
+  coord_flip() +
+  labs(title = "Holidays/Nonholidays Counts", x = "IsHoliday", y = "Count") +
+  theme_minimal() +
+  scale_y_continuous(labels = comma)
+
+grid.arrange(p1, p2, ncol=2)
+
+
+```
+
+Holiday weeks make up just 7% of the data's weeks.
+Holiday sales are often larger than non-holiday sales, even though they make up a smaller percentage of total sales.
+
+```{r}
+# Week of Year Vs Sales - based on Store Type
+library(ggplot2)
+
+p <- ggplot(mergeddf, aes(x = WeekOfYear, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_x_continuous(breaks = seq(1, 52, by = 1)) +  # Ensure x values are continuous
+  scale_y_continuous(labels = scales::comma) +       # Format y values with commas for better readability
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales across Weeks of the Year",
+       x = "Week of Year", y = "Sales") +
+  theme(axis.text = element_text(size = 5),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+p
+
+
+```
+This demonstrates a very weak correlation, with weekly sales rising as the year came to a finish. 
+
+
+```{r}
+#  Size of Store Vs Sales - based on Store Type
+library(ggplot2)
+
+
+p <- ggplot(mergeddf, aes(x = Size, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_y_continuous(breaks = seq(100000, 700000, by = 100000), labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales vs Store Size",
+       x = "Size", y = "Sales") +
+  theme(axis.text = element_text(size = 16),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+p
+
+```
+
+The weekly sales have a linear connection with the store's size. With a few notable exceptions, sales typically rise as shop size grows.
+
+
+```{r}
+# Temperature Vs Sales - based on Store Type
+library(ggplot2)
+
+p <- ggplot(mergeddf, aes(x = Temperature, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_y_continuous(breaks = seq(100000, 700000, by = 100000), labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales vs Temperature",
+       x = "Temperature", y = "Sales") +
+  theme(axis.text = element_text(size = 16),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+p
+
+```
+
+The weekly sales of the businesses appear to have little correlation with the local temperature. Sales appear to decline slightly at very hot and low temperatures, but there is often no discernible correlation.
+
+
+```{r}
+# Fuel Price Vs Sales
+library(ggplot2)
+
+
+p <- ggplot(mergeddf, aes(x = Fuel_Price, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_y_continuous(breaks = seq(100000, 700000, by = 100000), labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales vs Fuel Price",
+       x = "Fuel Price", y = "Sales") +
+  theme(axis.text = element_text(size = 16),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+p
+
+```
+There seems to be no obvious correlation between gasoline prices and sales.
+
+
+
+```{r}
+# Weekly Sales Vs CPI - based on Store Type
+library(ggplot2)
+
+
+p <- ggplot(mergeddf, aes(x = CPI, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_y_continuous(breaks = seq(100000, 700000, by = 100000), labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales vs CPI",
+       x = "CPI", y = "Sales") +
+  theme(axis.text = element_text(size = 16),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+
+p
+
+```
+
+
+
+There are three distinct clusters, however there isn't a clear relationship between weekly sales and CPI.
+
+```{r}
+#Weekly Sales vs Unemployment Rate - based on Store Type 
+library(ggplot2)
+
+
+p <- ggplot(mergeddf, aes(x = Unemployment, y = Weekly_Sales, color = Type)) +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = c("A" = "blue", "B" = "red", "C" = "green")) +
+  scale_y_continuous(breaks = seq(100000, 700000, by = 100000), labels = scales::comma) +
+  theme_minimal() +
+  labs(title = "Scatter plot of Weekly Sales vs Unemployment Rate",
+       x = "Unemployment Rate", y = "Sales") +
+  theme(axis.text = element_text(size = 16),
+        axis.title = element_text(size = 20, face = "bold"),
+        legend.title = element_text(size = 16))
+
+
+p
+
+```
+
+The weekly sales appear to be unaffected by the unemployment rate.
+
+
+```{r}
+# Coorelation Matrix
+
+storetype_values <- c(A = 3, B = 2, C = 1)
+
+
+mergeddf$Type_Numeric <- as.numeric(storetype_values[mergeddf$Type])
+testingdf_merged$Type_Numeric <- as.numeric(storetype_values[testingdf_merged$Type])
+
+```
+
+
+```{r}
+library(corrplot)
+
+# Select numeric columns from the mergeddf data frame
+numeric_columns <- mergeddf[sapply(mergeddf, is.numeric)]
+
+# Calculate the correlation matrix
+cor_matrix <- cor(numeric_columns, use = "complete.obs")
+
+# Set a larger plotting window
+options(repr.plot.width = 8, repr.plot.height = 8)
+
+# Create a correlation matrix plot using corrplot
+corrplot(cor_matrix, method = "color", col = colorRampPalette(c("white", "red"))(5), 
+         type = "full", tl.col = "black", tl.cex = 0.5, title = "Correlation Matrix", 
+         mar = c(1, 1, 1, 1), 
+         addCoef.col = "black",  # Add coefficient values in black color
+         number.cex = 0.5)      # Increase the size of the coefficient value
+
+
+
+```
+
+There is a modest relationship between the department, store size, and type and weekly sales.
+Since there is little to no link between Markdowns 1 through 5 and weekly sales, we will exclude these data from Temperature. These columns will also be removed because there is very little correlation between the weekly sales and the fuel price, CPI, and unemployment.
+Given that sales during the holiday weeks are greater than during non-holiday weeks, IsHoliday will be taken into consideration for additional study.
+We shall also exclude Month and Day because the WeekOfYear already has this information.
+
+
+DATA PREPARATION FOR MODEL TRAINING 
+
+```{r}
+# Eliminating unwanted columns
+library(dplyr)
+
+
+mergeddf_new <- mergeddf %>%
+  select(-Date, -Temperature, -Fuel_Price, -Type, -MarkDown1, -MarkDown2, -MarkDown3,
+         -MarkDown4, -MarkDown5, -CPI, -Unemployment, -Month, -Day)
+
+testingdf_merged_new <- testingdf_merged %>%
+  select(-Date, -Temperature, -Fuel_Price, -Type, -MarkDown1, -MarkDown2, -MarkDown3,
+         -MarkDown4, -MarkDown5, -CPI, -Unemployment, -Month, -Day)
+
+
+
+mergeddf_new
+testingdf_merged_new
+
+
+input_cols <- colnames(mergeddf_new)
+target_col <- "Weekly_Sales"
+
+
+input_cols <- input_cols[input_cols != target_col]
+
+# Create a new data frame with input columns ( 7 columns with weekly_sales)
+inputs_df <- mergeddf_new[, input_cols, drop = FALSE]
+
+# Extract the target column - it has weekly sales
+targets <- mergeddf_new[[target_col]]
+
+testing_inputs_df <- testingdf_merged_new[, input_cols, drop = FALSE]
+
+# Apply Min-Max scaling
+scaled_inputs_df <- scale(inputs_df)
+scaled_testing_inputs_df <- scale(testing_inputs_df)
+
+# Update the original data frames with scaled values
+mergeddf_new[, input_cols] <- scaled_inputs_df
+testingdf_merged_new[, input_cols] <- scaled_testing_inputs_df
+
+
+mergeddf_new
+testingdf_merged_new
+
+library(caret)
+
+set.seed(42)
+
+# Split the data into training and validation sets
+index <- createDataPartition(targets, p = 0.7, list = FALSE)
+train_inputs <- inputs_df[index, ]
+val_inputs <- inputs_df[-index, ]
+train_targets <- targets[index]
+val_targets <- targets[-index]
+
+```
+
+
+4. MACHINE LEARNING MODELS 
+
+4.1 LINEAR REGRESSION
+
+```{r}
+# Load required libraries
+library(caret)
+library(Metrics)
+
+# Create and train the model
+model <- lm(train_targets ~ ., data = train_inputs)
+
+# Generate predictions on training data
+train_preds <- predict(model, newdata = train_inputs)
+
+# Compute WMAE on training data
+train_wmae <- weighted.mean(abs(train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', train_wmae, '\n')
+
+# Generate predictions on validation data
+val_preds <- predict(model, newdata = val_inputs)
+
+# Compute WMAE on validation data
+val_wmae <- weighted.mean(abs(val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', val_wmae, '\n')
+
+```
+4.2 RIDGE REGRESSION
+
+```{r}
+# Load required libraries
+library(glmnet)
+
+# Create and train the Ridge model
+model_ridge <- glmnet(as.matrix(train_inputs), train_targets, alpha = 0, lambda = 1)
+
+# Generate predictions on training data
+train_preds <- predict(model_ridge, newx = as.matrix(train_inputs), s = 1)
+
+# Compute WMAE on training data
+train_wmae <- weighted.mean(abs(train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', train_wmae, '\n')
+
+# Generate predictions on validation data
+val_preds <- predict(model_ridge, newx = as.matrix(val_inputs), s = 1)
+
+# Compute WMAE on validation data
+val_wmae <- weighted.mean(abs(val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', val_wmae, '\n')
+
+```
+
+```{r}
+head(train_targets)
+```
+4.3. DECISION TREE
+
+```{r}
+
+# Load required library
+library(rpart)
+
+# Create the decision tree model
+model_tree <- rpart(train_targets ~ ., data = train_inputs)
+
+# Generate predictions on training data
+tree_train_preds <- predict(model_tree, newdata = train_inputs)
+
+# Compute WMAE on training data
+tree_train_wmae <- weighted.mean(abs(tree_train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', tree_train_wmae, '\n')
+
+# Assuming val_inputs and val_targets are your validation data and labels
+# Generate predictions on validation data
+tree_val_preds <- predict(model_tree, newdata = val_inputs)
+
+# Compute WMAE on validation data
+tree_val_wmae <- weighted.mean(abs(tree_val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', tree_val_wmae, '\n')
+
+
+library(rpart)
+library(ggplot2)
+
+# Assuming model_tree is your trained rpart decision tree model
+
+# Extract feature importance
+importance_tree <- model_tree$variable.importance
+
+# Create a data frame for feature importance
+importance_df <- data.frame(
+  feature = names(importance_tree),
+  importance = importance_tree
+)
+
+# Sort by importance
+importance_df <- importance_df[order(-importance_df$importance),]
+
+# Plot the feature importance
+ggplot(importance_df, aes(x = reorder(feature, importance), y = importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flip coordinates for a horizontal plot
+  labs(title = "Feature Importance", x = "Importance", y = "Feature") +
+  theme_minimal()
+
+```
+
+
+4.4 RANDOM FOREST 
+```{r}
+library(parallel)
+library(randomForest)
+library(Metrics)
+
+# Create the model
+num_cores <- 4
+model_rf1 <- randomForest(train_targets ~ ., data = train_inputs, ntree = 5, mtry = 4, ncores = num_cores)
+
+# Generate predictions on training data
+rf1_train_preds <- predict(model_rf1, newdata = train_inputs)
+
+# Compute WMAE on training data
+rf1_train_wmae <- weighted.mean(abs(rf1_train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', rf1_train_wmae, '\n')
+
+# Generate predictions on validation data
+rf1_val_preds <- predict(model_rf1, newdata = val_inputs)
+
+# Compute WMAE on validation data
+rf1_val_wmae <- weighted.mean(abs(rf1_val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', rf1_val_wmae, '\n')
+
+# Assuming rf1 is your trained Random Forest model
+
+# Extract feature importance
+importance_rf1 <- importance(model_rf1)
+
+# Check the structure of the importance output
+print(str(importance_rf1))
+
+# Examine the column names to see what importance metrics are available
+print(colnames(importance_rf1))
+
+# If 'MeanDecreaseAccuracy' or '%IncMSE' is not available, use the first available metric
+if (!"%IncMSE" %in% colnames(importance_rf1) && !"MeanDecreaseAccuracy" %in% colnames(importance_rf1)) {
+    importance_metric <- importance_rf1[, 1]  # Using the first metric as default
+    importance_metric_name <- colnames(importance_rf1)[1]
+} else {
+    importance_metric <- if ("%IncMSE" %in% colnames(importance_rf1)) importance_rf1[, "%IncMSE"] else importance_rf1[, "MeanDecreaseAccuracy"]
+    importance_metric_name <- if ("%IncMSE" %in% colnames(importance_rf1)) "%IncMSE" else "MeanDecreaseAccuracy"
+}
+
+# Create a data frame for feature importance
+importance_df <- data.frame(
+  feature = row.names(importance_rf1),
+  importance = importance_metric
+)
+
+# Sort by importance
+importance_df <- importance_df[order(-importance_df$importance),]
+
+# Plot the feature importance
+ggplot(importance_df, aes(x = reorder(feature, importance), y = importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flip coordinates for a horizontal plot
+  labs(title = paste("Feature Importance using", importance_metric_name), x = "Feature", y = "Importance") +
+  theme_minimal()
+
+```
+TUNING OF RANDOM FOREST PARAMETERS
+
+
+```{r}
+library(randomForest)
+
+# Assuming WMAE function is defined as before and relevant data is already loaded
+
+# Create and fit the Random Forest model
+# Note: 'max_depth' is approximated using 'maxnodes' in R's randomForest
+rf1 <- randomForest(train_targets ~ ., data = train_inputs, 
+                    ntree = 130, 
+                    mtry = 6,
+                    nodesize = 1, # Equivalent to min_samples_leaf
+                    maxnodes = 30, # Approximation of max_depth
+                    sampsize = floor(0.99999 * nrow(train_inputs)), # Approximation of max_samples
+                    na.action = na.omit,
+                    randomForest.seed = 42) # Set random state
+
+# Predict on training data
+rf1_train_preds <- predict(rf1, train_inputs)
+
+# Compute WMAE on training data
+rf1_train_wmae <- weighted.mean(abs(rf1_train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', rf1_train_wmae, '\n')
+
+# Predict on validation data
+rf1_val_preds <- predict(rf1, val_inputs)
+
+# Compute WMAE on validation data
+rf1_val_wmae <- weighted.mean(abs(rf1_val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', rf1_val_wmae, '\n')
+
+```
+
+
+4.5 GRADIENT BOOSTING 
+```{r}
+# Install and load required libraries
+install.packages("xgboost")
+library(xgboost) 
+library(Metrics)
+```
+
+```{r}
+# Install and load necessary libraries
+#install.packages("xgboost")
+#library(xgboost)
+#library(Metrics)
+
+# Assuming train_inputs, train_targets, val_inputs, and val_targets are available
+
+# Create and train the XGBoost model
+model_xgb <- xgboost(data = as.matrix(train_inputs), label = train_targets, nrounds = 100, objective = "reg:squarederror")
+
+# Generate predictions on training data
+train_preds_xgb <- predict(model_xgb, as.matrix(train_inputs))
+
+# Compute WMAE on training data
+train_wmae_xgb <- weighted.mean(abs(train_preds_xgb - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set using XGBoost is', train_wmae_xgb, '\n')
+
+# Generate predictions on validation data
+val_preds_xgb <- predict(model_xgb, as.matrix(val_inputs))
+
+# Compute WMAE on validation data
+val_wmae_xgb <- weighted.mean(abs(val_preds_xgb - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set using XGBoost is', val_wmae_xgb, '\n')
+
+```
+
+
+```{r}
+
+# Get feature importance
+importance_list <- xgb.importance(model = model_xgb)
+importance_df <- data.frame(
+  feature = colnames(train_inputs),
+  importance = as.numeric(importance_list$Gain[match(colnames(train_inputs), importance_list$Feature)])
+)
+
+# Order the dataframe by importance in descending order
+importance_df <- importance_df[order(-importance_df$importance), ]
+
+# Plot feature importance
+library(ggplot2)
+library(dplyr)
+
+# Generate a vector of colors (you can customize this based on your preferences)
+bar_colors <- rainbow(length(importance_df$feature))
+
+# Plot feature importance with different colors for each bar
+ggplot(importance_df, aes(x = importance, y = reorder(feature, importance))) +
+  geom_bar(stat = "identity", aes(fill = bar_colors), color = "black") +
+  labs(title = "Feature Importance", x = "Importance", y = "Feature") +
+  scale_fill_identity() +  # This line is added to use the specified colors
+  theme_minimal()
+
+
+
+```
+For the Random Forest also, the Department, Store Size and Store Number have higher model importances than the other parameters
+
+
+TUNING OF MODEL PARAMETERS 
+```{r}
+# Install required packages if not installed
+if (!requireNamespace("xgboost", quietly = TRUE)) {
+  install.packages("xgboost")
+}
+
+library(xgboost)
+
+# Function to train and evaluate XGBoost model with given parameters
+train_eval_xgb <- function(train_inputs, train_targets, val_inputs, val_targets, params) {
+  model <- xgboost(data = as.matrix(train_inputs), label = train_targets, nrounds = params$nrounds,
+                   max_depth = params$max_depth, eta = params$eta, objective = "reg:squarederror", nthread = -1, seed = 42)
+  
+  train_preds <- predict(model, as.matrix(train_inputs))
+  val_preds <- predict(model, as.matrix(val_inputs))
+  
+  train_wmae <- weighted.mean(abs(train_preds - train_targets), weights = train_inputs$IsHoliday)
+  val_wmae <- weighted.mean(abs(val_preds - val_targets), weights = val_inputs$IsHoliday)
+  
+  return(list(model = model, train_wmae = train_wmae, val_wmae = val_wmae))
+}
+
+# Function to perform parameter tuning
+tune_params <- function(train_inputs, train_targets, val_inputs, val_targets, param_grid) {
+  results <- list()
+  
+  for (i in 1:nrow(param_grid)) {
+    params <- param_grid[i, ]
+    eval_result <- train_eval_xgb(train_inputs, train_targets, val_inputs, val_targets, params)
+    
+    results[[paste("param_set_", i)]] <- c(params, eval_result)
+  }
+  
+  return(results)
+}
+
+# Specify parameter grid for tuning
+param_grid <- expand.grid(
+  nrounds = c(5, 10, 15),
+  max_depth = c(3, 6, 9),
+  eta = c(0.01, 0.1, 0.3)
+)
+
+# Perform parameter tuning
+tuning_results <- tune_params(train_inputs, train_targets, val_inputs, val_targets, param_grid)
+
+# Display tuning results
+print(tuning_results)
+
+
+
+```
+
+```{r}
+# Extract tuning results for each parameter
+nrounds_results <- sapply(tuning_results, function(result) result$nrounds)
+max_depth_results <- sapply(tuning_results, function(result) result$max_depth)
+eta_results <- sapply(tuning_results, function(result) result$eta)
+train_wmae_results <- sapply(tuning_results, function(result) result$train_wmae)
+val_wmae_results <- sapply(tuning_results, function(result) result$val_wmae)
+
+# Plot results for nrounds
+plot(param_grid$nrounds, val_wmae_results, type = "b", pch = 16, col = "blue",
+     xlab = "nrounds", ylab = "WMAE", main = "Tuning Results")
+lines(param_grid$nrounds, train_wmae_results, type = "b", pch = 16, col = "red")
+legend("topright", legend = c("Validation WMAE", "Training WMAE"), col = c("blue", "red"), pch = 16)
+
+# Plot results for max_depth
+plot(param_grid$max_depth, val_wmae_results, type = "b", pch = 16, col = "blue",
+     xlab = "max_depth", ylab = "WMAE", main = "Tuning Results")
+lines(param_grid$max_depth, train_wmae_results, type = "b", pch = 16, col = "red")
+legend("topright", legend = c("Validation WMAE", "Training WMAE"), col = c("blue", "red"), pch = 16)
+
+# Plot results for eta
+plot(param_grid$eta, val_wmae_results, type = "b", pch = 16, col = "blue",
+     xlab = "eta", ylab = "WMAE", main = "Tuning Results")
+lines(param_grid$eta, train_wmae_results, type = "b", pch = 16, col = "red")
+legend("topright", legend = c("Validation WMAE", "Training WMAE"), col = c("blue", "red"), pch = 16)
+
+```
+
+```{r}
+# Plot the overfitting curve
+plot(nrounds_seq, train_wmae_values, type = "b", pch = 16, col = "red",
+     xlab = "Number of Boosting Rounds (nrounds)", ylab = "WMAE", main = "Overfitting Curve")
+lines(nrounds_seq, val_wmae_values, type = "b", pch = 16, col = "blue")
+legend("topright", legend = c("Training WMAE", "Validation WMAE"), col = c("red", "blue"), pch = 16)
+```
+
+```{r}
+
+# install.packages("xgboost")
+library(xgboost)
+
+# Set the seed for reproducibility
+set.seed(42)
+
+# Create the model
+model_xgb <- xgboost(data = as.matrix(train_inputs), label = train_targets,
+                     nrounds = 400, max_depth = 15, eta = 0.35, objective = "reg:squarederror", nthread = -1, seed = 42)
+
+# Generate predictions on training data
+train_preds_xgb <- predict(model_xgb, as.matrix(train_inputs))
+
+# Compute WMAE on training data
+train_wmae_xgb <- weighted.mean(abs(train_preds_xgb - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', train_wmae_xgb, '\n')
+
+# Generate predictions on validation data
+val_preds_xgb <- predict(model_xgb, as.matrix(val_inputs))
+
+# Compute WMAE on validation data
+val_wmae_xgb <- weighted.mean(abs(val_preds_xgb - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', val_wmae_xgb, '\n')
+
+```
+
+
+PREDICTIONS
+
+```{r}
+
+library(randomForest)
+
+# Assuming WMAE function is defined as before and relevant data is already loaded
+
+# Create and fit the Random Forest model
+# Note: 'max_depth' is approximated using 'maxnodes' in R's randomForest
+rf1 <- randomForest(train_targets ~ ., data = train_inputs, 
+                    ntree = 130, 
+                    mtry = 6,
+                    nodesize = 1, # Equivalent to min_samples_leaf
+                    maxnodes = 30, # Approximation of max_depth
+                    sampsize = floor(0.99999 * nrow(train_inputs)), # Approximation of max_samples
+                    na.action = na.omit,
+                    randomForest.seed = 42) # Set random state
+
+# Predict on training data
+rf1_train_preds <- predict(rf1, train_inputs)
+
+# Compute WMAE on training data
+rf1_train_wmae <- weighted.mean(abs(rf1_train_preds - train_targets), weights = train_inputs$IsHoliday)
+cat('The WMAE loss for the training set is', rf1_train_wmae, '\n')
+
+# Predict on validation data
+rf1_val_preds <- predict(rf1, val_inputs)
+
+# Compute WMAE on validation data
+rf1_val_wmae <- weighted.mean(abs(rf1_val_preds - val_targets), weights = val_inputs$IsHoliday)
+cat('The WMAE loss for the validation set is', rf1_val_wmae, '\n')
+
+
+```
+
